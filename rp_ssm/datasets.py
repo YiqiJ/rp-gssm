@@ -20,6 +20,7 @@ NOISE_SCALE = 0.05
 class TrainData:
     obs: tuple[Array, ...]
     actions: Optional[tuple[Array, ...]] = None
+    masks: Optional[Array] = None # shape (N, T)
 
     def __getitem__(self, index):
         """Allow indexing over all J data modalities"""
@@ -33,24 +34,55 @@ class TrainData:
 class Dataset:
     train_obs: tuple[Array, ...]
     train_states: Array
+    train_masks: Array # shape (N, T)
     val_obs: tuple[Array, ...]
     val_states: Array
+    val_masks: Array # shape (N, T)
+    test_obs: tuple[Array, ...]
+    test_states: Array
+    test_masks: Array # shape (N, T)
     params: dict[str, Array]
     train_actions: Optional[tuple[Array, ...]] = None
     val_actions: Optional[tuple[Array, ...]] = None
+    test_actions: Optional[tuple[Array, ...]] = None
+    train_behaviors: Optional[Array] = None
+    val_behaviors: Optional[Array] = None
+    test_behaviors: Optional[Array] = None
 
     @property
     def train_data(self):
-        return TrainData(obs=self.train_obs, actions=self.train_actions)
+        return TrainData(obs=self.train_obs, actions=self.train_actions, masks=self.train_masks)
 
     @property
     def val_data(self):
-        return TrainData(obs=self.val_obs, actions=self.val_actions)
+        return TrainData(obs=self.val_obs, actions=self.val_actions, masks=self.val_masks)
+    
+    @property
+    def test_data(self):
+        return TrainData(obs=self.test_obs, actions=self.test_actions, masks=self.test_masks)
 
     @property
     def standardized_data(self):
-        means = tuple(np.mean(d, keepdims=True) for d in self.train_obs)
-        stds = tuple(np.std(d, keepdims=True) for d in self.train_obs)
+        if self.train_masks is None:
+            means = tuple(np.mean(d, keepdims=True) for d in self.train_obs)
+            stds = tuple(np.std(d, keepdims=True) for d in self.train_obs)
+        else:
+            means = tuple(
+                np.sum(d * self.train_masks[..., None], axis=(0, 1), keepdims=True)
+                / np.sum(self.train_masks)
+                for d in self.train_obs
+            )
+            stds = tuple(
+                np.sqrt(
+                    np.sum(
+                        ((d - m) ** 2) * self.train_masks[..., None],
+                        axis=(0, 1),
+                        keepdims=True,
+                    )
+                    / np.sum(self.train_masks)
+                )
+                for d, m in zip(self.train_obs, means)
+            )
 
         scaled_train_obs = tuple(
             (d - m) / s for d, m, s in zip(self.train_obs, means, stds)
@@ -59,13 +91,23 @@ class Dataset:
             (d - m) / s for d, m, s in zip(self.val_obs, means, stds)
         )
 
+        scaled_test_obs = tuple(
+            (d - m) / s for d, m, s in zip(self.test_obs, means, stds)
+        )
+
         return Dataset(
             train_obs=scaled_train_obs,
             train_actions=self.train_actions,
             train_states=self.train_states,
+            train_masks=self.train_masks,
             val_obs=scaled_val_obs,
             val_actions=self.val_actions,
             val_states=self.val_states,
+            val_masks=self.val_masks,
+            test_obs=scaled_test_obs,
+            test_actions=self.test_actions,
+            test_states=self.test_states,
+            test_masks=self.test_masks,
             params=self.params,
         )
 
@@ -73,16 +115,24 @@ class Dataset:
     def flatten(self):
         train_shape = self.train_obs[0].shape[:2] + (-1,)
         val_shape = self.val_obs[0].shape[:2] + (-1,)
+        test_shape = self.test_obs[0].shape[:2] + (-1,)
         train_obs = tuple(np.reshape(x, train_shape) for x in self.train_obs)
         val_obs = tuple(np.reshape(x, val_shape) for x in self.val_obs)
+        test_obs = tuple(np.reshape(x, test_shape) for x in self.test_obs)
 
         return Dataset(
             train_obs=train_obs,
             train_actions=self.train_actions,
             train_states=self.train_states,
+            train_masks=self.train_masks,
             val_obs=val_obs,
             val_actions=self.val_actions,
             val_states=self.val_states,
+            val_masks=self.val_masks,
+            test_obs=test_obs,
+            test_actions=self.test_actions,
+            test_states=self.test_states,
+            test_masks=self.test_masks,
             params=self.params,
         )
 
@@ -96,6 +146,8 @@ class Dataset:
                 else self.train_actions[index]
             ),
             train_states=self.train_states[index],
+            train_masks=self.train_masks[index],
+            train_behaviors=None if self.train_behaviors is None else self.train_behaviors[index],
             val_obs=tuple(x[index] for x in self.val_obs),
             val_actions=(
                 self.val_actions
@@ -103,8 +155,43 @@ class Dataset:
                 else self.val_actions[index]
             ),
             val_states=self.val_states[index],
+            val_masks=self.val_masks[index],
+            val_behaviors=None if self.val_behaviors is None else self.val_behaviors[index],
+            test_obs=tuple(x[index] for x in self.test_obs),
+            test_actions=(
+                self.test_actions
+                if self.test_actions is None
+                else self.test_actions[index]
+            ),
+            test_states=self.test_states[index],
+            test_masks=self.test_masks[index],
+            test_behaviors=None if self.test_behaviors is None else self.test_behaviors[index],
             params=self.params,
         )
+
+def load_mousewheel_dataset(seed: int, datadir: str) -> Dataset:
+    """
+    Load the mousewheel dataset.
+    """
+    key = jr.PRNGKey(seed + 1)
+    train_key, val_key = jr.split(key)
+    loaded_data = np.load(f"{datadir}", allow_pickle=True).item()
+
+    return Dataset(
+        train_obs=(loaded_data['train_obs'],),
+        train_states=loaded_data['train_states'],
+        train_masks=loaded_data.get('train_masks', None),
+        train_behaviors=loaded_data.get('train_behaviors', None),
+        val_obs=(loaded_data['val_obs'],),
+        val_states=loaded_data['val_states'],
+        val_masks=loaded_data.get('val_masks', None),
+        val_behaviors=loaded_data.get('val_behaviors', None),
+        test_obs=(loaded_data['test_obs'],),
+        test_states=loaded_data['test_states'],
+        test_masks=loaded_data.get('test_masks', None),
+        test_behaviors=loaded_data.get('test_behaviors', None),
+        params=None
+    )
 
 
 def load_dataset(name: str, seed: int, datadir: str = DATA_DIR) -> Dataset:
