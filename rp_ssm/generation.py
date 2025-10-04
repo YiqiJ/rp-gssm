@@ -112,5 +112,9 @@ class GenerativeModel:
         keys = jr.split(key, data.obs[0].shape[0])
         loss = vmap(_sequence_loss)(keys, data.obs[0], posterior)
 
-        Z = data.obs[0].shape[0] * data.obs[0].shape[1]
+        if data.masks is not None:
+            per_t_logp = per_t_logp * data.masks
+            Z = np.sum(data.masks)
+        else:
+            Z = data.obs[0].shape[0] * data.obs[0].shape[1]
         return -np.sum(loss) / Z, None

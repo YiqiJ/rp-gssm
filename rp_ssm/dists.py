@@ -482,9 +482,9 @@ class LGChainDistParam(DistParam):
     compute a corresponding AllParam object.
     """
 
-    def kl(self, other):
+    def kl(self, other, masks: Optional[Array] = None) -> Array:
         """Compute KL(self||other)"""
-        return dists_utils.chain_kl(self.params, other.params)
+        return dists_utils.chain_kl(self.params, other.params, masks)
 
     @property
     def all_param(self):

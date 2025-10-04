@@ -118,10 +118,13 @@ class ConstrainedIVFreeEnergy:
 
         ### M-step
         kl_qf, log_Gamma, kl_qp = self.get_loss_terms(
-            prior_chain, factors_nat, posterior
+            prior_chain, factors_nat, posterior, data.masks
         )
 
-        Z = self.batch_size * self.num_timesteps * self.num_factors
+        if data.masks is not None:
+            Z = self.num_factors * np.sum(data.masks)
+        else:
+            Z = self.batch_size * self.num_timesteps * self.num_factors
         loss = -(log_Gamma - kl_qf - beta * kl_qp) / Z
 
         aux = {
@@ -161,13 +164,20 @@ class ConstrainedIVFreeEnergy:
 
         return prior_chain, factors_nat, posterior
 
-    def get_loss_terms(self, prior_chain, factors_nat, posterior):
+    def get_loss_terms(self, prior_chain, factors_nat, posterior, masks=None):
 
         if prior_chain.params["means"].ndim == 2:
-            kl_qp = vmap(lambda qtk: qtk.kl(prior_chain))(posterior)  # B
+            if masks is None:
+                kl_qp = vmap(lambda qtk: qtk.kl(prior_chain))(posterior)  # B
+            else:
+                kl_qp = vmap(lambda qtk, m: qtk.kl(prior_chain, m))(posterior, masks)  # B
             prior_chain = prior_chain.all_param  # TxK
 
         elif prior_chain.params["means"].ndim == 3:
+            if masks is None:
+                kl_qp = vmap(lambda qtk, ptk: qtk.kl(ptk))(posterior, prior_chain)  # B
+            else:
+                kl_qp = vmap(lambda qtk, ptk, m: qtk.kl(ptk, m))(posterior, prior_chain, masks)  # B
             kl_qp = vmap(lambda qtk, ptk: qtk.kl(ptk))(posterior, prior_chain)  # B
             prior_chain = prior_chain.moment_match.all_param  # BxTxK
 
@@ -196,5 +206,10 @@ class ConstrainedIVFreeEnergy:
         log_Gamma = vmap(vmap(lambda G: np.diag(G) - logsumexp(G, axis=1)))(
             log_gammas
         )  # JxTxB
+
+        if masks is not None:
+            # masks: BxT
+            kl_qf = kl_qf * masks[None, :, :]               # JxBxT
+            log_Gamma = log_Gamma * masks.T[None, :, :]     # JxTxB (use TxB)
 
         return kl_qf.sum(), log_Gamma.sum(), kl_qp.sum()

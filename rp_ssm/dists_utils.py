@@ -119,7 +119,7 @@ def transitions_to_marginals(
         return chain_dist
 
 
-def chain_kl(q: dict[str, Array], p: dict[str, Array]) -> float:
+def chain_kl(q: dict[str, Array], p: dict[str, Array], masks: Optional[Array] = None) -> float:
     """Compute KL(q(z_1:T)||p(z_1:T))"""
 
     def kl_t(muq, mup, Sq, Sp):
@@ -150,7 +150,14 @@ def chain_kl(q: dict[str, Array], p: dict[str, Array]) -> float:
         p["covs"][1:],
         q["cross_covs"],
         p["cross_covs"],
-    )
+    ) # shape: (T-1,)
+
+    if masks is not None:
+        # masks: (T,), use valid pairs t and t+1
+        masks = masks.astype(np.float32)
+        m_marg = masks[1:-1]                       # (T-2,)
+        m_pair = masks[:-1] * masks[1:]             # (T-1,)
+        return np.sum(pairwise * m_pair) - np.sum(marginal * m_marg)
 
     return np.sum(pairwise) - np.sum(marginal)
 
