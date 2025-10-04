@@ -1,6 +1,6 @@
 # Decoder utils
 import numpy as np
-from src.decoding import *
+from decoding import *
 
 def init_decoder(decoder_type, decoder_params):
     if decoder_type in ['linear']:

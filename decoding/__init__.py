@@ -1,2 +1,2 @@
-from src.decoding.linear import LinearDecoder
-from src.decoding.nonlinear import NonLinearDecoder
+from decoding.linear import LinearDecoder
+from decoding.nonlinear import NonLinearDecoder

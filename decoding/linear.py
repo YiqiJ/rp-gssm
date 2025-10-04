@@ -8,7 +8,7 @@ from scipy import stats
 from sklearn import linear_model
 from sklearn.model_selection import RepeatedKFold, GridSearchCV
 
-from src.decoding.base_decoding import Decoder
+from decoding.base_decoding import Decoder
 
 class LinearDecoder(Decoder):
     def __init__(self, model_name='lasso', **kwargs):

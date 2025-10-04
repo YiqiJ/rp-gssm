@@ -10,7 +10,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
-from src.decoding.base_decoding import Decoder
+from decoding.base_decoding import Decoder
 
 def identity_func(x):
     return x

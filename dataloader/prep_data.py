@@ -4,7 +4,7 @@ import numpy as np
 from dataloader_mouse import dataloader_mouse_wheel
 
 fpath_lst = [
-    "G:/My Drive/Research/data/shikano/aim282_nodeconv/sw24_20231121_ctx-str-cbl-rsc/train-byTrial-sw24_20231121_str.mat",
+    "/home/yiqi/Desktop/Research/data/shikano/aim282_nodeconv/sw24_20231121_ctx-str-cbl-rsc/train-byTrial-sw24_20231121_str.mat",
     # "G:/My Drive/Research/data/shikano/aim282_nodeconv/sw24_20231121_ctx-str-cbl-rsc/train-byTrial-sw24_20231121_ctx.mat",
     # "G:/My Drive/Research/data/shikano/aim282_nodeconv/sw24_20231121_ctx-str-cbl-rsc/train-byTrial-sw24_20231121_cbl.mat",
     # "G:/My Drive/Research/data/shikano/aim282_nodeconv/sw24_20231121_ctx-str-cbl-rsc/train-byTrial-sw24_20231121_rsc.mat",
@@ -98,7 +98,7 @@ def prep_data(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output_dir', type=str, default='G:/My Drive/Research/data/shikano/aim282_nodeconv/sw24_20231121_ctx-str-cbl-rsc', help='directory to save the processed data')
-    parser.add_argument('--latent_dim', type=int, default=10, help='dimensionality of latent states')
+    parser.add_argument('--output_dir', type=str, default='.', help='directory to save the processed data')
+    parser.add_argument('--latent_dim', type=int, default=20, help='dimensionality of latent states')
     args = parser.parse_args()
     prep_data(args)
